@@ -1,139 +1,28 @@
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="20 → Bull">
-  <meta name="theme-color" content="#111111">
-  <link rel="manifest" href="manifest.json">
-  <title>20 → Bull</title>
-  <style>
-    :root { --bg:#0d0d0f; --card:#1a1a1f; --muted:#999; --line:#303038; --accent:#f2f2f2; }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#fff;min-height:100vh}
-    .wrap{max-width:650px;margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
-    h1{font-size:24px;margin:0 0 5px}.sub{color:var(--muted);font-size:14px;margin-bottom:18px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
-    label{display:block;color:#bbb;font-size:13px;margin-bottom:5px}
-    input,select{width:100%;font-size:17px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#111;color:#fff;margin-bottom:10px}
-    button{border:0;border-radius:14px;padding:14px 10px;font-weight:700;font-size:16px;cursor:pointer}
-    .primary{width:100%;background:#fff;color:#111}.secondary{background:#292930;color:#fff;border:1px solid #3b3b44}
-    .hidden{display:none!important}
-    .top{display:flex;gap:8px;margin-bottom:12px}.top button{flex:1}
-    .turn{text-align:center}.turn .who{font-size:17px;color:#bbb}.target{font-size:76px;font-weight:900;line-height:1.05;margin:10px 0 3px}
-    .targetLabel{color:#aaa;margin-bottom:8px}.dart{font-size:14px;color:#aaa}
-    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
-    .actions button{min-height:62px}.miss{background:#35353c;color:#fff}.single{background:#eee;color:#111}.double{background:#d5d5d5;color:#111}.triple{background:#bbb;color:#111}
-    .players{display:grid;gap:8px}.player{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#141418}
-    .player.active{outline:2px solid #fff}.pname{font-weight:700}.pstat,.throws{font-size:13px;color:#aaa}.done{opacity:.55}
-    .winner{text-align:center;font-size:21px;font-weight:800;padding:10px 0}.small{font-size:12px;color:#888;text-align:center;margin-top:12px}
-  </style>
-</head>
-<body>
-<div class="wrap">
-  <h1>🎯 20 → Bull</h1>
-  <div class="sub">Offline-Dartspiel für 1–6 Spieler</div>
-
-  <section id="setup" class="card">
-    <label>Spieleranzahl</label>
-    <select id="count"></select>
-    <div id="names"></div>
-    <button class="primary" id="start">Spiel starten</button>
-  </section>
-
-  <section id="game" class="hidden">
-    <div class="top">
-      <button class="secondary" id="undo">↶ Rückgängig</button>
-      <button class="secondary" id="new">Neues Spiel</button>
-    </div>
-    <div class="card turn">
-      <div class="who" id="who"></div>
-      <div class="target" id="target"></div>
-      <div class="targetLabel" id="targetLabel">Aktuelles Ziel</div>
-      <div class="dart" id="dart"></div>
-    </div>
-    <div class="actions" id="actions">
-      <button class="miss" data-step="0">✕ Miss</button>
-      <button class="single" data-step="1">Single</button>
-      <button class="double" data-step="2">Double</button>
-      <button class="triple" data-step="3">Triple</button>
-    </div>
-    <div class="card">
-      <div id="winner" class="winner hidden"></div>
-      <div class="players" id="players"></div>
-    </div>
-  </section>
-  <div class="small">Jeder Wurf wird gezählt · Spielerwechsel automatisch nach 3 Würfen</div>
-</div>
-<script>
-const route = Array.from({length:20},(_,i)=>String(20-i)).concat(["SB","BULL"]);
-let state=null, history=[];
-const $=id=>document.getElementById(id);
-
-for(let i=1;i<=6;i++) $("count").insertAdjacentHTML("beforeend",`<option value="${i}" ${i===2?"selected":""}>${i}</option>`);
-function nameFields(){
-  let n=+$("count").value, html="";
-  for(let i=0;i<n;i++) html+=`<label>Spieler ${i+1}</label><input id="n${i}" value="Spieler ${i+1}" maxlength="18">`;
-  $("names").innerHTML=html;
-}
-$("count").onchange=nameFields; nameFields();
-
-$("start").onclick=()=>{
-  const n=+$("count").value;
-  state={current:0,dartInTurn:0,finished:false,players:Array.from({length:n},(_,i)=>({name:$("n"+i).value.trim()||`Spieler ${i+1}`,pos:0,throws:0,done:false,finishThrows:null}))};
-  history=[];$("setup").classList.add("hidden");$("game").classList.remove("hidden");render();
-};
-$("new").onclick=()=>{if(confirm("Neues Spiel starten?")){state=null;history=[];$("game").classList.add("hidden");$("setup").classList.remove("hidden");}};
-$("undo").onclick=()=>{if(history.length){state=history.pop();render();}};
-
-$("actions").onclick=e=>{
-  const b=e.target.closest("button[data-step]"); if(!b||!state||state.finished)return;
-  history.push(JSON.parse(JSON.stringify(state)));
-  const p=state.players[state.current], step=+b.dataset.step;
-  p.throws++; state.dartInTurn++;
-  if(step>0){
-    p.pos=Math.min(route.length,p.pos+step);
-    if(p.pos>=route.length){p.done=true;p.finishThrows=p.throws;}
-  }
-  if(p.done){
-    const alive=state.players.filter(x=>!x.done);
-    if(alive.length===0){state.finished=true;}
-    else nextPlayer();
-  } else if(state.dartInTurn>=3) nextPlayer();
-  render();
-};
-function nextPlayer(){
-  state.dartInTurn=0;
-  for(let k=1;k<=state.players.length;k++){
-    let idx=(state.current+k)%state.players.length;
-    if(!state.players[idx].done){state.current=idx;return;}
-  }
-  state.finished=true;
-}
-function targetFor(p){return p.done?"✓":route[Math.min(p.pos,route.length-1)];}
-function render(){
-  const p=state.players[state.current];
-  $("who").textContent=state.finished?"Spiel beendet":p.name+" ist dran";
-  $("target").textContent=state.finished?"🏁":targetFor(p);
-  $("targetLabel").textContent=state.finished?"Alle Spieler sind fertig":(targetFor(p)==="SB"?"Single Bull treffen":targetFor(p)==="BULL"?"Bullseye treffen":"Aktuelles Zielfeld");
-  $("dart").textContent=state.finished?"":`Wurf ${state.dartInTurn+1} von 3 · insgesamt ${p.throws} Würfe`;
-  $("actions").classList.toggle("hidden",state.finished);
-  $("winner").classList.toggle("hidden",!state.finished);
-  if(state.finished){
-    const ranked=[...state.players].sort((a,b)=>a.finishThrows-b.finishThrows);
-    $("winner").textContent=`🏆 ${ranked[0].name}: ${ranked[0].finishThrows} Würfe`;
-  }
-  $("players").innerHTML=state.players.map((x,i)=>`
-    <div class="player ${i===state.current&&!state.finished?"active":""} ${x.done?"done":""}">
-      <div><div class="pname">${escapeHtml(x.name)} ${x.done?"✓":""}</div><div class="pstat">Ziel: ${targetFor(x)}</div></div>
-      <div class="throws">${x.throws} Würfe</div>
-      <div>${x.done?x.finishThrows:""}</div>
-    </div>`).join("");
-}
-function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
-</script>
-</body>
-</html>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Laufen"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png"><title>Laufen</title><style>
+*{box-sizing:border-box}body{margin:0;background:#0d0d0f;color:white;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.w{max-width:650px;margin:auto;padding:20px 15px}h1{margin:0}.sub,.muted{color:#999}.card{background:#1a1a1f;border:1px solid #333;border-radius:18px;padding:15px;margin:12px 0}input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:12px;font-size:16px}input,select{background:#111;color:white;border:1px solid #333}button{border:0;font-weight:700}.hidden{display:none}.target{text-align:center;font-size:72px;font-weight:900}.center{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.miss{background:#35353d;color:white}.row{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #333}.active{outline:2px solid white;border-radius:10px}.top{display:flex;gap:8px}.top button{background:#292930;color:white}table{width:100%;border-collapse:collapse}td,th{padding:9px 4px;border-bottom:1px solid #333;text-align:left}td:nth-child(n+3),th:nth-child(n+3){text-align:right}
+</style></head><body><div class="w"><h1>🎯 Laufen</h1><div class="sub">20 → 1 → Single Bull → Bullseye</div>
+<div id="setup" class="card"><label>Spieleranzahl</label><select id="count"></select><div id="names"></div><button onclick="start()">Spiel starten</button></div>
+<div id="game" class="hidden"><div class="top"><button onclick="undo()">↶ Rückgängig</button><button onclick="location.reload()">Neues Spiel</button></div><div class="card center"><div id="who"></div><div id="target" class="target"></div><div id="hint" class="muted"></div><div id="throws" class="muted"></div></div><div id="actions" class="grid"></div><div id="plist" class="card"></div></div>
+<div id="end" class="hidden"><div class="card"><h2 id="winner" class="center"></h2><div id="table"></div></div><button onclick="nextRound()">Nächste Runde</button></div>
+</div><script>
+let S=null,H=[],$=x=>document.getElementById(x);for(let i=1;i<=6;i++)count.innerHTML+=`<option ${i==2?'selected':''}>${i}</option>`;
+function fields(){names.innerHTML='';for(let i=0;i<+count.value;i++)names.innerHTML+=`<input id="n${i}" value="Spieler ${i+1}">`}count.onchange=fields;fields();
+function start(){let p=[];for(let i=0;i<+count.value;i++)p.push({name:$('n'+i).value||`Spieler ${i+1}`,pos:20,points:0,total:0,round:0});S={p,current:0,dart:0,rnd:1,over:false};setup.classList.add('hidden');game.classList.remove('hidden');render()}
+function tgt(p){return p.pos>0?p.pos:p.pos==0?'SB':'BULL'}
+function hit(k){H.push(JSON.stringify(S));let p=S.p[S.current];p.total++;p.round++;S.dart++;
+ if(p.pos>0){let n=k=='S'?1:k=='D'?2:k=='T'?3:0;if(n)p.pos=Math.max(0,p.pos-n)}
+ else if(p.pos==0){if(k=='SB')p.pos=-1;else if(k=='B')win()}
+ else if(k=='B')win();
+ if(!S.over&&S.dart>=3){S.dart=0;S.current=(S.current+1)%S.p.length}if(S.over)roundEnd();else render()}
+function win(){S.p[S.current].points++;S.over=true}
+function acts(p){if(p.pos>0)return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('S')">Single ${p.pos}</button><button onclick="hit('D')">Double ${p.pos}</button><button onclick="hit('T')">Triple ${p.pos}</button>`;
+if(p.pos==0)return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('SB')">Single Bull</button><button style="grid-column:1/-1" onclick="hit('B')">🎯 Bullseye</button>`;
+return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('B')">🎯 Bullseye</button>`}
+function render(){let p=S.p[S.current];who.textContent=`Runde ${S.rnd} · ${p.name} ist dran`;target.textContent=tgt(p);hint.textContent=p.pos>0?`Treffe die ${p.pos}`:p.pos==0?'Single Bull oder direkt Bullseye':'Treffe Bullseye';throws.textContent=`Wurf ${S.dart+1}/3 · Runde ${p.round} · Gesamt ${p.total}`;actions.innerHTML=acts(p);plist.innerHTML=S.p.map((x,i)=>`<div class="row ${i==S.current?'active':''}"><span><b>${x.name}</b><br><span class="muted">Ziel ${tgt(x)}</span></span><span>${x.points} P.<br><span class="muted">${x.total} Würfe</span></span></div>`).join('')}
+function rank(){return [...S.p].sort((a,b)=>b.points-a.points||a.total-b.total)}
+function tab(){return `<table><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Würfe</th></tr>${rank().map((p,i)=>`<tr><td>${i+1}</td><td>${p.name}</td><td>${p.points}</td><td>${p.total}</td></tr>`).join('')}</table>`}
+function roundEnd(){game.classList.add('hidden');end.classList.remove('hidden');winner.textContent=`🏆 ${S.p[S.current].name} gewinnt Runde ${S.rnd}`;table.innerHTML=tab()}
+function nextRound(){S.rnd++;S.over=false;S.dart=0;S.p.forEach(p=>{p.pos=20;p.round=0});H=[];end.classList.add('hidden');game.classList.remove('hidden');render()}
+function undo(){if(H.length){S=JSON.parse(H.pop());render()}}
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>

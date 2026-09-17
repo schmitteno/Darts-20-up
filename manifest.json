@@ -1,9 +1,1 @@
-{
-  "name": "20 → Bull",
-  "short_name": "20 → Bull",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#0d0d0f",
-  "theme_color": "#111111",
-  "description": "Privates Offline-Dartspiel für bis zu 6 Spieler"
-}
+{"name": "Laufen", "short_name": "Laufen", "start_url": "./", "display": "standalone", "background_color": "#0d0d0f", "theme_color": "#0d0d0f", "icons": [{"src": "icon.png", "sizes": "1024x1024", "type": "image/png"}]}

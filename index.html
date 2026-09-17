@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="20 → Bull">
+  <meta name="theme-color" content="#111111">
+  <link rel="manifest" href="manifest.json">
+  <title>20 → Bull</title>
+  <style>
+    :root { --bg:#0d0d0f; --card:#1a1a1f; --muted:#999; --line:#303038; --accent:#f2f2f2; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:#fff;min-height:100vh}
+    .wrap{max-width:650px;margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+    h1{font-size:24px;margin:0 0 5px}.sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
+    label{display:block;color:#bbb;font-size:13px;margin-bottom:5px}
+    input,select{width:100%;font-size:17px;padding:12px;border-radius:12px;border:1px solid var(--line);background:#111;color:#fff;margin-bottom:10px}
+    button{border:0;border-radius:14px;padding:14px 10px;font-weight:700;font-size:16px;cursor:pointer}
+    .primary{width:100%;background:#fff;color:#111}.secondary{background:#292930;color:#fff;border:1px solid #3b3b44}
+    .hidden{display:none!important}
+    .top{display:flex;gap:8px;margin-bottom:12px}.top button{flex:1}
+    .turn{text-align:center}.turn .who{font-size:17px;color:#bbb}.target{font-size:76px;font-weight:900;line-height:1.05;margin:10px 0 3px}
+    .targetLabel{color:#aaa;margin-bottom:8px}.dart{font-size:14px;color:#aaa}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+    .actions button{min-height:62px}.miss{background:#35353c;color:#fff}.single{background:#eee;color:#111}.double{background:#d5d5d5;color:#111}.triple{background:#bbb;color:#111}
+    .players{display:grid;gap:8px}.player{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:#141418}
+    .player.active{outline:2px solid #fff}.pname{font-weight:700}.pstat,.throws{font-size:13px;color:#aaa}.done{opacity:.55}
+    .winner{text-align:center;font-size:21px;font-weight:800;padding:10px 0}.small{font-size:12px;color:#888;text-align:center;margin-top:12px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎯 20 → Bull</h1>
+  <div class="sub">Offline-Dartspiel für 1–6 Spieler</div>
+
+  <section id="setup" class="card">
+    <label>Spieleranzahl</label>
+    <select id="count"></select>
+    <div id="names"></div>
+    <button class="primary" id="start">Spiel starten</button>
+  </section>
+
+  <section id="game" class="hidden">
+    <div class="top">
+      <button class="secondary" id="undo">↶ Rückgängig</button>
+      <button class="secondary" id="new">Neues Spiel</button>
+    </div>
+    <div class="card turn">
+      <div class="who" id="who"></div>
+      <div class="target" id="target"></div>
+      <div class="targetLabel" id="targetLabel">Aktuelles Ziel</div>
+      <div class="dart" id="dart"></div>
+    </div>
+    <div class="actions" id="actions">
+      <button class="miss" data-step="0">✕ Miss</button>
+      <button class="single" data-step="1">Single</button>
+      <button class="double" data-step="2">Double</button>
+      <button class="triple" data-step="3">Triple</button>
+    </div>
+    <div class="card">
+      <div id="winner" class="winner hidden"></div>
+      <div class="players" id="players"></div>
+    </div>
+  </section>
+  <div class="small">Jeder Wurf wird gezählt · Spielerwechsel automatisch nach 3 Würfen</div>
+</div>
+<script>
+const route = Array.from({length:20},(_,i)=>String(20-i)).concat(["SB","BULL"]);
+let state=null, history=[];
+const $=id=>document.getElementById(id);
+
+for(let i=1;i<=6;i++) $("count").insertAdjacentHTML("beforeend",`<option value="${i}" ${i===2?"selected":""}>${i}</option>`);
+function nameFields(){
+  let n=+$("count").value, html="";
+  for(let i=0;i<n;i++) html+=`<label>Spieler ${i+1}</label><input id="n${i}" value="Spieler ${i+1}" maxlength="18">`;
+  $("names").innerHTML=html;
+}
+$("count").onchange=nameFields; nameFields();
+
+$("start").onclick=()=>{
+  const n=+$("count").value;
+  state={current:0,dartInTurn:0,finished:false,players:Array.from({length:n},(_,i)=>({name:$("n"+i).value.trim()||`Spieler ${i+1}`,pos:0,throws:0,done:false,finishThrows:null}))};
+  history=[];$("setup").classList.add("hidden");$("game").classList.remove("hidden");render();
+};
+$("new").onclick=()=>{if(confirm("Neues Spiel starten?")){state=null;history=[];$("game").classList.add("hidden");$("setup").classList.remove("hidden");}};
+$("undo").onclick=()=>{if(history.length){state=history.pop();render();}};
+
+$("actions").onclick=e=>{
+  const b=e.target.closest("button[data-step]"); if(!b||!state||state.finished)return;
+  history.push(JSON.parse(JSON.stringify(state)));
+  const p=state.players[state.current], step=+b.dataset.step;
+  p.throws++; state.dartInTurn++;
+  if(step>0){
+    p.pos=Math.min(route.length,p.pos+step);
+    if(p.pos>=route.length){p.done=true;p.finishThrows=p.throws;}
+  }
+  if(p.done){
+    const alive=state.players.filter(x=>!x.done);
+    if(alive.length===0){state.finished=true;}
+    else nextPlayer();
+  } else if(state.dartInTurn>=3) nextPlayer();
+  render();
+};
+function nextPlayer(){
+  state.dartInTurn=0;
+  for(let k=1;k<=state.players.length;k++){
+    let idx=(state.current+k)%state.players.length;
+    if(!state.players[idx].done){state.current=idx;return;}
+  }
+  state.finished=true;
+}
+function targetFor(p){return p.done?"✓":route[Math.min(p.pos,route.length-1)];}
+function render(){
+  const p=state.players[state.current];
+  $("who").textContent=state.finished?"Spiel beendet":p.name+" ist dran";
+  $("target").textContent=state.finished?"🏁":targetFor(p);
+  $("targetLabel").textContent=state.finished?"Alle Spieler sind fertig":(targetFor(p)==="SB"?"Single Bull treffen":targetFor(p)==="BULL"?"Bullseye treffen":"Aktuelles Zielfeld");
+  $("dart").textContent=state.finished?"":`Wurf ${state.dartInTurn+1} von 3 · insgesamt ${p.throws} Würfe`;
+  $("actions").classList.toggle("hidden",state.finished);
+  $("winner").classList.toggle("hidden",!state.finished);
+  if(state.finished){
+    const ranked=[...state.players].sort((a,b)=>a.finishThrows-b.finishThrows);
+    $("winner").textContent=`🏆 ${ranked[0].name}: ${ranked[0].finishThrows} Würfe`;
+  }
+  $("players").innerHTML=state.players.map((x,i)=>`
+    <div class="player ${i===state.current&&!state.finished?"active":""} ${x.done?"done":""}">
+      <div><div class="pname">${escapeHtml(x.name)} ${x.done?"✓":""}</div><div class="pstat">Ziel: ${targetFor(x)}</div></div>
+      <div class="throws">${x.throws} Würfe</div>
+      <div>${x.done?x.finishThrows:""}</div>
+    </div>`).join("");
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>

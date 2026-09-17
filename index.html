@@ -1,41 +1,90 @@
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Laufen"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png"><title>Laufen</title><style>
-*{box-sizing:border-box}body{margin:0;background:#0d0d0f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.w{max-width:650px;margin:auto;padding:20px 15px}h1{margin:0}.sub,.muted{color:#999}.card{background:#1a1a1f;border:1px solid #333;border-radius:18px;padding:15px;margin:12px 0}input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:12px;font-size:16px}input,select{background:#111;color:#fff;border:1px solid #333}button{border:0;font-weight:700}.hidden{display:none}.target{text-align:center;font-size:72px;font-weight:900}.center{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.miss{background:#35353d;color:#fff}.row{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #333}.active{outline:2px solid #fff;border-radius:10px}.top{display:flex;gap:8px}.top button{background:#292930;color:#fff}table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:9px 4px;border-bottom:1px solid #333;text-align:left}td:nth-child(n+3),th:nth-child(n+3){text-align:right}.event{text-align:center;color:#ffcf66;font-weight:700;min-height:20px;margin-top:7px}
+*{box-sizing:border-box}body{margin:0;background:#0d0d0f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.w{max-width:680px;margin:auto;padding:20px 15px}h1{margin:0}.sub,.muted{color:#999}.card{background:#1a1a1f;border:1px solid #333;border-radius:18px;padding:15px;margin:12px 0}input,select,button{width:100%;padding:13px;margin:5px 0;border-radius:12px;font-size:16px}input,select{background:#111;color:#fff;border:1px solid #333}button{border:0;font-weight:700}.hidden{display:none}.target{text-align:center;font-size:68px;font-weight:900}.center{text-align:center}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.miss{background:#35353d;color:#fff}.row{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #333}.active{outline:2px solid #fff;border-radius:10px}.top{display:flex;gap:8px}.top button{background:#292930;color:#fff}table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:9px 4px;border-bottom:1px solid #333;text-align:left}td:nth-child(n+3),th:nth-child(n+3){text-align:right}.event{text-align:center;color:#ffcf66;font-weight:700;min-height:20px;margin-top:7px}.pick{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.pick button{padding:11px 4px;background:#eee;color:#111}.safe{color:#8fd9a8}.challenge{color:#ffcf66;font-weight:700}
 </style></head><body><div class="w"><h1>🎯 Laufen</h1><div class="sub">20 → Bullseye</div>
 <div id="setup" class="card"><label>Spieleranzahl</label><select id="count"></select><div id="names"></div><button onclick="start()">Spiel starten</button></div>
-<div id="game" class="hidden"><div class="top"><button onclick="undo()">↶ Rückgängig</button><button onclick="location.reload()">Neues Spiel</button></div><div class="card center"><div id="who"></div><div id="target" class="target"></div><div id="hint" class="muted"></div><div id="throws" class="muted"></div><div id="event" class="event"></div></div><div id="actions" class="grid"></div><div id="plist" class="card"></div></div>
+<div id="game" class="hidden"><div class="top"><button onclick="undo()">↶ Rückgängig</button><button onclick="location.reload()">Neues Spiel</button></div><div class="card center"><div id="who"></div><div id="target" class="target"></div><div id="hint" class="muted"></div><div id="throws" class="muted"></div><div id="event" class="event"></div></div><div id="actions"></div><div id="plist" class="card"></div></div>
 <div id="end" class="hidden"><div class="card"><h2 id="winner" class="center"></h2><div id="table"></div></div><button onclick="nextRound()">Nächste Runde</button></div>
 </div><script>
-let S=null,H=[],$=x=>document.getElementById(x);for(let i=1;i<=6;i++)count.innerHTML+=`<option ${i==2?'selected':''}>${i}</option>`;
+let S=null,H=[],$=x=>document.getElementById(x);
+for(let i=1;i<=6;i++)count.innerHTML+=`<option ${i==2?'selected':''}>${i}</option>`;
 function fields(){names.innerHTML='';for(let i=0;i<+count.value;i++)names.innerHTML+=`<input id="n${i}" value="Spieler ${i+1}">`}count.onchange=fields;fields();
-function start(){let p=[];for(let i=0;i<+count.value;i++)p.push({name:$('n'+i).value||`Spieler ${i+1}`,pos:20,points:0,roundThrows:0,winThrows:0,wins:0});S={p,current:0,dart:0,rnd:1,over:false,msg:''};setup.classList.add('hidden');game.classList.remove('hidden');render()}
-function tgt(p){return p.pos>0?p.pos:p.pos==0?'SB':'BULL'}
-function landedNumbers(start,step){let a=[];for(let j=1;j<=step;j++){let n=start-j;if(n>=1)a.push(n)}return a}
-function eliminateAt(nums,shooter){let hit=[];S.p.forEach((q,i)=>{if(i!==shooter && q.pos>=1 && nums.includes(q.pos)){q.pos=20;hit.push(q.name)}});return hit}
+function start(){let p=[];for(let i=0;i<+count.value;i++)p.push({name:$('n'+i).value||`Spieler ${i+1}`,pos:20,checkpoint:20,challenge:null,choice:null,points:0,roundThrows:0,winThrows:0,wins:0});S={p,current:0,dart:0,rnd:1,over:false,msg:'',picker:null};setup.classList.add('hidden');game.classList.remove('hidden');render()}
+function tgt(p){if(p.challenge)return p.choice?`${p.challenge=='D'?'D':'T'}${p.choice}`:(p.challenge=='D'?'Doppel wählen':'Triple wählen');return p.pos>0?p.pos:p.pos==0?'SB':'BULL'}
+function crossed(old,step,n){return old>=n && old-step<n}
+function checkpointTarget(p){return p.checkpoint==13?12:p.checkpoint==6?5:20}
+function eliminateAt(nums,shooter){
+ let hit=[];
+ S.p.forEach((q,i)=>{
+   if(i===shooter||q.challenge)return;
+   // A player on BULL has already hit Single Bull and is fully protected.
+   if(q.pos<0)return;
+   // SB is still eliminable by 1 / D2 / T3 (the traversed number 0 marker).
+   let occupied=q.pos;
+   if(nums.includes(occupied)){
+      q.pos=checkpointTarget(q); q.challenge=null;q.choice=null;hit.push(`${q.name} → ${q.pos}`);
+   }
+ });
+ return hit
+}
+function chooseChallenge(n){H.push(JSON.stringify(S));let p=S.p[S.current];p.choice=n;S.picker=null;S.msg=`${p.name} muss ${p.challenge}${n} treffen`;render()}
 function hit(k){
+ if(S.picker!==null)return;
  H.push(JSON.stringify(S));let p=S.p[S.current];p.roundThrows++;S.dart++;S.msg='';
- if(p.pos>0){
+ // Special D/T checkpoint challenge
+ if(p.challenge){
+   if(k===p.challenge){p.challenge=null;p.choice=null}
+ } else if(p.pos>0){
    let step=k=='S'?1:k=='D'?2:k=='T'?3:0;
    if(step){
-     let old=p.pos, traversed=landedNumbers(old,step);
-     p.pos=Math.max(0,old-step);
+     let old=p.pos, newpos=Math.max(0,old-step);
+     // numbers/stands crossed: target after a hit is old-step; elimination occurs on every traversed landing position
+     let traversed=[];for(let j=1;j<=step;j++){let x=old-j;if(x>=0)traversed.push(x)}
+     p.pos=newpos;
      let victims=eliminateAt(traversed,S.current);
-     if(victims.length)S.msg=`💥 ${victims.join(', ')} ${victims.length>1?'müssen':'muss'} zurück auf 20`;
+     if(victims.length)S.msg=`💥 ${victims.join(', ')}`;
+     // Safe checkpoint 13 passed -> target 12, mandatory chosen double before continuing
+     if(crossed(old,step,13)&&p.checkpoint===20){
+       p.checkpoint=13;p.pos=12;p.challenge='D';p.choice=null;
+       S.picker=(S.current-1+S.p.length)%S.p.length;
+     }
+     // Safe checkpoint 6 passed -> target 5, mandatory chosen triple
+     else if(crossed(old,step,6)&&p.checkpoint>=13){
+       p.checkpoint=6;p.pos=5;p.challenge='T';p.choice=null;
+       S.picker=(S.current-1+S.p.length)%S.p.length;
+     }
    }
  } else if(p.pos==0){if(k=='SB')p.pos=-1;else if(k=='B')win()}
  else if(k=='B')win();
- if(!S.over&&S.dart>=3){S.dart=0;S.current=(S.current+1)%S.p.length}
- if(S.over)roundEnd();else render()
+ if(S.over){roundEnd();return}
+ // Do not change player while predecessor is choosing checkpoint challenge.
+ if(S.picker!==null){render();return}
+ if(S.dart>=3){S.dart=0;S.current=(S.current+1)%S.p.length}
+ render()
 }
 function win(){let p=S.p[S.current];p.points++;p.wins++;p.winThrows+=p.roundThrows;S.over=true}
-function acts(p){if(p.pos>0)return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('S')">Single ${p.pos}</button><button onclick="hit('D')">Double ${p.pos}</button><button onclick="hit('T')">Triple ${p.pos}</button>`;
-if(p.pos==0)return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('SB')">Single Bull</button><button style="grid-column:1/-1" onclick="hit('B')">🎯 Bullseye</button>`;
-return `<button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('B')">🎯 Bullseye</button>`}
+function actionHTML(p){
+ if(S.picker!==null){
+   let picker=S.p[S.picker], type=p.challenge=='D'?'Doppel':'Triple';
+   return `<div class="card center"><div class="challenge">${picker.name} bestimmt das ${type} für ${p.name}</div><div class="pick">${Array.from({length:20},(_,i)=>`<button onclick="chooseChallenge(${i+1})">${p.challenge}${i+1}</button>`).join('')}</div></div>`
+ }
+ if(p.challenge&&p.choice)return `<div class="grid"><button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('${p.challenge}')">${p.challenge}${p.choice} getroffen</button></div>`;
+ if(p.pos>0)return `<div class="grid"><button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('S')">Single ${p.pos}</button><button onclick="hit('D')">Double ${p.pos}</button><button onclick="hit('T')">Triple ${p.pos}</button></div>`;
+ if(p.pos==0)return `<div class="grid"><button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('SB')">Single Bull</button><button style="grid-column:1/-1" onclick="hit('B')">🎯 Bullseye</button></div>`;
+ return `<div class="grid"><button class="miss" onclick="hit('M')">✕ Miss</button><button onclick="hit('B')">🎯 Bullseye</button></div>`
+}
 function avg(p){return p.wins?(p.winThrows/p.wins).toFixed(1):'–'}
-function render(){let p=S.p[S.current];who.textContent=`Runde ${S.rnd} · ${p.name} ist dran`;target.textContent=tgt(p);hint.textContent=p.pos>0?`Treffe die ${p.pos}`:p.pos==0?'Single Bull oder direkt Bullseye':'Treffe Bullseye';throws.textContent=`Wurf ${S.dart+1}/3 · diese Runde: ${p.roundThrows}`;event.textContent=S.msg;actions.innerHTML=acts(p);plist.innerHTML=S.p.map((x,i)=>`<div class="row ${i==S.current?'active':''}"><span><b>${x.name}</b><br><span class="muted">Ziel ${tgt(x)}</span></span><span>${x.points} P.<br><span class="muted">Ø Sieg: ${avg(x)}</span></span></div>`).join('')}
+function render(){
+ let p=S.p[S.current];
+ who.textContent=S.picker!==null?`${S.p[S.picker].name} wählt für ${p.name}`:`Runde ${S.rnd} · ${p.name} ist dran`;
+ target.textContent=tgt(p);
+ hint.textContent=p.challenge?(p.choice?`Pflichtfeld: ${p.challenge=='D'?'Doppel':'Triple'} ${p.choice}`:'Pflichtfeld wird bestimmt'):p.pos>0?`Treffe die ${p.pos}`:p.pos==0?'Single Bull oder direkt Bullseye':'Treffe Bullseye';
+ throws.textContent=`Wurf ${S.dart+1}/3 · diese Runde: ${p.roundThrows}`;event.textContent=S.msg;actions.innerHTML=actionHTML(p);
+ plist.innerHTML=S.p.map((x,i)=>`<div class="row ${i==S.current?'active':''}"><span><b>${x.name}</b><br><span class="muted">Ziel ${tgt(x)}</span><br><span class="safe">Sicher: ${x.checkpoint==20?'Start':x.checkpoint}</span></span><span>${x.points} P.<br><span class="muted">Ø Sieg: ${avg(x)}</span></span></div>`).join('')
+}
 function rank(){return [...S.p].sort((a,b)=>b.points-a.points||(a.wins?a.winThrows/a.wins:Infinity)-(b.wins?b.winThrows/b.wins:Infinity))}
 function tab(){return `<table><tr><th>#</th><th>Spieler</th><th>Punkte</th><th>Ø Würfe/Sieg</th></tr>${rank().map((p,i)=>`<tr><td>${i+1}</td><td>${p.name}</td><td>${p.points}</td><td>${avg(p)}</td></tr>`).join('')}</table>`}
 function roundEnd(){game.classList.add('hidden');end.classList.remove('hidden');winner.textContent=`🏆 ${S.p[S.current].name} gewinnt Runde ${S.rnd}`;table.innerHTML=tab()}
-function nextRound(){S.rnd++;S.over=false;S.dart=0;S.msg='';S.p.forEach(p=>{p.pos=20;p.roundThrows=0});H=[];end.classList.add('hidden');game.classList.remove('hidden');render()}
+function nextRound(){S.rnd++;S.over=false;S.dart=0;S.msg='';S.picker=null;S.p.forEach(p=>{p.pos=20;p.checkpoint=20;p.challenge=null;p.choice=null;p.roundThrows=0});H=[];end.classList.add('hidden');game.classList.remove('hidden');render()}
 function undo(){if(H.length){S=JSON.parse(H.pop());render()}}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>

@@ -33,6 +33,16 @@ function eliminateExact(hitNumber,shooter){
  return hit
 }
 function enterSecond(){let p=S.p[S.current];H.push(JSON.stringify(S));p.stage=2;p.pos=20;p.checkpoint=20;p.challenge=null;p.pendingChallenge=null;p.choice=null;p.sbTurn=0;S.msg='⚡ Zweite Leiter: keine sicheren Felder';render()}
+
+function startSecondWith(k){
+ let p=S.p[S.current];H.push(JSON.stringify(S));p.stage=2;p.pos=20;p.checkpoint=20;p.challenge=null;p.pendingChallenge=null;p.choice=null;p.sbTurn=0;S.msg='⚡ Zweite Leiter gestartet';
+ // The chosen S20/D20/T20 is the actual dart, so count it and advance 1/2/3.
+ p.roundThrows++;S.dart++;let step=k==='S'?1:k==='D'?2:3;p.pos=Math.max(0,20-step);
+ let victims=eliminateExact(p.pos,S.current);if(victims.length)S.msg=`💥 ${victims.join(', ')}`;
+ flash('hit');
+ if(S.dart>=3){S.dart=0;S.current=(S.current+1)%S.p.length;activatePending()}
+ render()
+}
 function chooseChallenge(n){H.push(JSON.stringify(S));let p=S.p[S.current];p.choice=n;S.picker=null;S.msg=`${p.name} muss ${p.challenge}${n} treffen`;render()}
 function hit(k){
  if(S.mode==='advanced'&&S.p[S.current].stage===2&&k==='B'){H.push(JSON.stringify(S));let p=S.p[S.current];p.roundThrows++;S.dart++;win();flash('hit');roundEnd();return}
